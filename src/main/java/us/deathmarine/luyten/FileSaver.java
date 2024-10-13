@@ -26,6 +26,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.zip.ZipException;
@@ -65,7 +66,7 @@ public class FileSaver {
     }
 
     public void saveText(final String text, final File file) {
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             DecompilerSettings settings = cloneSettings();
             boolean isUnicodeEnabled = settings.isUnicodeOutputEnabled();
             long time = System.currentTimeMillis();
@@ -86,11 +87,11 @@ public class FileSaver {
                 setExtracting(false);
                 bar.setVisible(false);
             }
-        }).start();
+        });
     }
 
     public void saveAllDecompiled(final File inFile, final File outFile) {
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             long time = System.currentTimeMillis();
             try {
                 bar.setVisible(true);
@@ -113,11 +114,11 @@ public class FileSaver {
                 setExtracting(false);
                 bar.setVisible(false);
             }
-        }).start();
+        });
     }
 
     public void saveAllDecompiledCLI(final File inFile, final File outFile) {
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             long time = System.currentTimeMillis();
             try {
                 setExtracting(true);
@@ -135,7 +136,7 @@ public class FileSaver {
             } finally {
                 setExtracting(false);
             }
-        }).start();
+        });
     }
 
     private void performSaveOperation(File inFile, File outFile) throws Exception {

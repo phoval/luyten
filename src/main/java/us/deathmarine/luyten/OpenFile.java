@@ -18,6 +18,7 @@ import java.io.StringWriter;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -454,7 +455,7 @@ public class OpenFile {
         if (initialNavigationLink != null) {
             doEnableLinks();
         } else {
-            new Thread(() -> {
+            CompletableFuture.runAsync(() -> {
                 try {
                     isWaitForLinksCursor = true;
                     doEnableLinks();
@@ -462,7 +463,7 @@ public class OpenFile {
                     isWaitForLinksCursor = false;
                     resetCursor();
                 }
-            }).start();
+            });
         }
     }
 

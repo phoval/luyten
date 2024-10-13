@@ -26,6 +26,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -242,7 +243,7 @@ public class Model extends JSplitPane {
             if (!isLeaf)
                 return;
 
-            new Thread(() -> openEntryByTreePath(trp)).start();
+            CompletableFuture.runAsync(() -> openEntryByTreePath(trp));
         }
     }
 
@@ -498,7 +499,7 @@ public class Model extends JSplitPane {
         if (open.getType() == null) {
             return;
         }
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
                 bar.setVisible(true);
                 getLabel().setText("Extracting: " + open.name);
@@ -510,7 +511,7 @@ public class Model extends JSplitPane {
             } finally {
                 bar.setVisible(false);
             }
-        }).start();
+        });
     }
 
     private boolean isTabInForeground(OpenFile open) {
@@ -659,7 +660,7 @@ public class Model extends JSplitPane {
     }
 
     public void loadTree() {
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
                 if (file == null) {
                     return;
@@ -734,10 +735,10 @@ public class Model extends JSplitPane {
                     getLabel().setText("Complete");
 
                     // Open it automatically
-                    new Thread(() -> {
+                    CompletableFuture.runAsync(() -> {
                         TreePath trp = new TreePath(top.getPath());
                         openEntryByTreePath(trp);
-                    }).start();
+                    });
                 }
 
                 if (treeExpansionState != null) {
@@ -759,7 +760,7 @@ public class Model extends JSplitPane {
                 mainWindow.onFileLoadEnded();
                 bar.setVisible(false);
             }
-        }).start();
+        });
     }
 
     private void buildTreeFromMass(List<String> mass) {
@@ -962,7 +963,7 @@ public class Model extends JSplitPane {
     }
 
     public void startWarmUpThread() {
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
                 Thread.sleep(500);
                 String internalName = FindBox.class.getName();
@@ -986,11 +987,11 @@ public class Model extends JSplitPane {
             } catch (Exception e) {
                 Luyten.showExceptionDialog("Exception!", e);
             }
-        }).start();
+        });
     }
 
     public void navigateTo(final String uniqueStr) {
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             if (uniqueStr == null)
                 return;
             String[] linkParts = uniqueStr.split("\\|");
@@ -1018,7 +1019,7 @@ public class Model extends JSplitPane {
             } finally {
                 bar.setVisible(false);
             }
-        }).start();
+        });
     }
 
     public JLabel getLabel() {

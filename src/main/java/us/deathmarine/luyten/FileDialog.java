@@ -2,6 +2,7 @@ package us.deathmarine.luyten;
 
 import java.awt.Component;
 import java.io.File;
+import java.util.concurrent.CompletableFuture;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 
@@ -23,7 +24,7 @@ public class FileDialog {
         LuytenPreferences luytenPrefs = configSaver.getLuytenPreferences();
         dirPreferences = new DirPreferences(luytenPrefs);
 
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
                 initOpenDialog();
                 initSaveAllDialog();
@@ -31,7 +32,7 @@ public class FileDialog {
             } catch (Exception e) {
                 Luyten.showExceptionDialog("Exception!", e);
             }
-        }).start();
+        });
     }
 
     public File doOpenDialog() {

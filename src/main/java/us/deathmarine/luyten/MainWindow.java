@@ -15,12 +15,13 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.reflect.Field;
+import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import javax.management.*;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.ImageIcon;
@@ -294,7 +295,7 @@ public class MainWindow extends JFrame {
     }
 
     public void onLegalMenu() {
-        new Thread(() -> {
+        CompletableFuture.runAsync(() -> {
             try {
                 bar.setVisible(true);
                 bar.setIndeterminate(true);
@@ -304,45 +305,23 @@ public class MainWindow extends JFrame {
                 bar.setIndeterminate(false);
                 bar.setVisible(false);
             }
-        }).start();
+        });
     }
 
     public void onListLoadedClasses() {
         try {
-            StringBuilder sb = new StringBuilder();
-            ClassLoader myCL = Thread.currentThread().getContextClassLoader();
-            bar.setVisible(true);
-            bar.setIndeterminate(true);
-            while (myCL != null) {
-                sb.append("ClassLoader: ").append(myCL).append("\n");
-                Iterator<?> iter = list(myCL);
-                while (iter != null && iter.hasNext()) {
-                    sb.append("\t").append(iter.next()).append("\n");
-                }
-                myCL = myCL.getParent();
-            }
-            this.getSelectedModel().show("Debug", sb.toString());
+            var classes = (String) ManagementFactory.getPlatformMBeanServer().invoke(
+                    new ObjectName("com.sun.management:type=DiagnosticCommand"),
+                    "gcClassHistogram",
+                    new Object[]{new String[]{"-all"}},
+                    new String[]{"[Ljava.lang.String;"});
+            this.getSelectedModel().show("Debug", classes);
+        } catch (Exception e) {
+            //
         } finally {
             bar.setIndeterminate(false);
             bar.setVisible(false);
         }
-    }
-
-    private static Iterator<?> list(ClassLoader CL) {
-        Class<?> CL_class = CL.getClass();
-        while (CL_class != ClassLoader.class) {
-            CL_class = CL_class.getSuperclass();
-        }
-        Field ClassLoader_classes_field;
-        try {
-            ClassLoader_classes_field = CL_class.getDeclaredField("classes");
-            ClassLoader_classes_field.setAccessible(true);
-            Iterable<?> classes = (Iterable<?>) ClassLoader_classes_field.get(CL);
-            return classes.iterator();
-        } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException e) {
-            Luyten.showExceptionDialog("Exception!", e);
-        }
-        return null;
     }
 
     private String getLegalStr() {

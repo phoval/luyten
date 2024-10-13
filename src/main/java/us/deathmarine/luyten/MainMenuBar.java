@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
 import javax.swing.BoxLayout;
@@ -97,8 +98,7 @@ public class MainMenuBar extends JMenuBar {
         this.add(helpMenu);
 
         // start quicker
-        new Thread() {
-            public void run() {
+        CompletableFuture.runAsync(()-> {
                 try {
                     // build menu later
                     buildFileMenu(fileMenu);
@@ -123,21 +123,20 @@ public class MainMenuBar extends JMenuBar {
                 } catch (Exception e) {
                     Luyten.showExceptionDialog("Exception!", e);
                 }
-            }
+        });
+    }
 
-            // refresh currently opened menu
-            // (if user selected a menu before it was ready)
-            private void refreshMenuPopup(JMenu menu) {
-                try {
-                    if (menu.isPopupMenuVisible()) {
-                        menu.getPopupMenu().setVisible(false);
-                        menu.getPopupMenu().setVisible(true);
-                    }
-                } catch (Exception e) {
-                    Luyten.showExceptionDialog("Exception!", e);
-                }
+    // refresh currently opened menu
+    // (if user selected a menu before it was ready)
+    private void refreshMenuPopup(JMenu menu) {
+        try {
+            if (menu.isPopupMenuVisible()) {
+                menu.getPopupMenu().setVisible(false);
+                menu.getPopupMenu().setVisible(true);
             }
-        }.start();
+        } catch (Exception e) {
+            Luyten.showExceptionDialog("Exception!", e);
+        }
     }
 
     public void updateRecentFiles() {
@@ -364,10 +363,10 @@ public class MainMenuBar extends JMenuBar {
 
     private void buildSettingsMenu(JMenu settingsMenu) {
         settingsMenu.removeAll();
-        ActionListener settingsChanged = e -> new Thread(() -> {
+        ActionListener settingsChanged = e -> CompletableFuture.runAsync(() -> {
             populateSettingsFromSettingsMenu();
             mainWindow.onSettingsChanged();
-        }).start();
+        });
         flattenSwitchBlocks = new JCheckBoxMenuItem("Flatten Switch Blocks");
         flattenSwitchBlocks.setSelected(settings.getFlattenSwitchBlocks());
         flattenSwitchBlocks.addActionListener(settingsChanged);

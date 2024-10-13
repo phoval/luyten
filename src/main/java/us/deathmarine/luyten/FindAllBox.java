@@ -17,6 +17,7 @@ import java.awt.event.WindowEvent;
 import java.io.*;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.concurrent.CompletableFuture;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Pattern;
@@ -66,7 +67,7 @@ public class FindAllBox extends JDialog {
 
     private final DefaultListModel<String> classesList = new DefaultListModel<>();
 
-    private Thread tmp_thread;
+    private CompletableFuture<Void> tmp_thread;
 
     private final MainWindow mainWindow;
 
@@ -195,10 +196,10 @@ public class FindAllBox extends JDialog {
 
         @Override
         public void actionPerformed(ActionEvent event) {
-            tmp_thread = new Thread(() -> {
+            tmp_thread = CompletableFuture.runAsync(() -> {
                 if (findButton.getText().equals("Stop")) {
                     if (tmp_thread != null)
-                        tmp_thread.interrupt();
+                        tmp_thread.cancel(true);
                     setStatus("Stopped.");
                     findButton.setText("Find");
                     locked = false;
@@ -313,8 +314,6 @@ public class FindAllBox extends JDialog {
                     locked = false;
                 }
             });
-            tmp_thread.start();
-
         }
 
     }
