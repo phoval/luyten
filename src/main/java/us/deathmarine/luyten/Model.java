@@ -302,7 +302,7 @@ public class Model extends JSplitPane {
                     }
                     StringBuilder finalPath = path;
                     JarFile jarFile = state.jarFiles.stream().filter(x -> x.getJarEntry(finalPath.toString()) != null).findAny().orElse(null);
-                    if(jarFile == null) {
+                    if (jarFile == null) {
                         throw new FileEntryNotFoundException();
                     }
 
@@ -539,6 +539,13 @@ public class Model extends JSplitPane {
             }
             for (JarFile jarFile : jarFiles) {
                 Closer.tryClose(jarFile);
+                if (jarFile.getName().contains("luyten_temp_")) {
+                    try {
+                        Files.deleteIfExists(Path.of(jarFile.getName()));
+                    } catch (IOException e) {
+                        //
+                    }
+                }
             }
         }
 
@@ -667,6 +674,7 @@ public class Model extends JSplitPane {
                     JarFile jarFile = new JarFile(file);
                     subJarFiles.add(jarFile);
                     getLabel().setText("Loading: " + jarFile.getName());
+                    bar.setValue(0);
                     bar.setVisible(true);
                     Collection<ITypeLoader> jarLoader = new ConcurrentLinkedQueue<>();
                     jarLoader.add(new JarTypeLoader(jarFile));
@@ -678,12 +686,15 @@ public class Model extends JSplitPane {
                     } else {
                         mass.addAll(jarEntryFilter.getAllEntriesFromJar());
                     }
-                    for (String el : mass) {
-                        if (el.endsWith(".jar") && jarFile.getEntry(el) != null) {
+                    bar.setMaximum(mass.size());
+                    final String filter = Objects.requireNonNullElse(JOptionPane.showInputDialog("Filter jar inside ? | for delimiter", "*"), "*");
+                    mass.parallelStream().forEach(el -> {
+                        if (el.endsWith(".jar") && jarFile.getEntry(el) != null &&
+                                (filter.equals("*") || Arrays.stream(filter.split("\\|")).anyMatch(el::contains))) {
                             ZipEntry entry = jarFile.getEntry(el);
                             JarFile subjarFile;
                             try {
-                                Path tmpFile = Files.createTempFile("lu", "zz");
+                                Path tmpFile = Files.createTempFile("luyten_temp_", "");
                                 Files.copy(
                                         jarFile.getInputStream(entry),
                                         tmpFile,
@@ -699,13 +710,13 @@ public class Model extends JSplitPane {
                                 mass.addAll(entries);
                                 jarLoader.add(new JarTypeLoader(subjarFile));
                                 subJarFiles.add(subjarFile);
-                                //subjarFile.close();
-                                //Files.deleteIfExists(tmpFile);
                             } catch (IOException e) {
                                 Luyten.showExceptionDialog("Cannot open " + el + "!", e);
                             }
-                        }
-                    }
+                            }
+
+                        bar.setValue(bar.getValue() + 1);
+                    });
                     buildTreeFromMass(new ArrayList<>(mass));
 
                     if (state == null) {

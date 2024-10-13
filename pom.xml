@@ -154,7 +154,7 @@
                 <!-- Download universalJavaApplicationStub for use in the OS X app -->
                 <groupId>com.googlecode.maven-download-plugin</groupId>
                 <artifactId>download-maven-plugin</artifactId>
-                <version>1.8.1</version>
+                <version>1.10.0</version>
                 <executions>
                     <execution>
                         <phase>process-resources</phase>
