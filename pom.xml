@@ -84,6 +84,7 @@
                         </goals>
                         <configuration>
                             <finalName>${project.artifactId}-${project.version}</finalName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
