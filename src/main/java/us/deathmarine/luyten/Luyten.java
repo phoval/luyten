@@ -30,7 +30,11 @@ import javax.swing.UIManager;
 import javax.swing.border.BevelBorder;
 import javax.swing.border.CompoundBorder;
 import javax.swing.text.DefaultEditorKit;
+
+import com.github.weisj.darklaf.LafManager;
 import picocli.CommandLine;
+
+import static com.github.weisj.darklaf.LafManager.getPreferredThemeStyle;
 
 /**
  * Starter, the main class
@@ -79,6 +83,7 @@ public class Luyten implements Runnable {
 
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            LafManager.install(LafManager.themeForPreferredStyle(getPreferredThemeStyle()));
         } catch (Exception e) {
             e.printStackTrace();
         }

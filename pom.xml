@@ -22,6 +22,7 @@
         <picocli.version>4.7.6</picocli.version>
         <procyon.version>0.6.0</procyon.version>
         <rsyntaxtextarea.version>3.5.1</rsyntaxtextarea.version>
+        <darklaf.version>3.0.2</darklaf.version>
     </properties>
 
     <dependencies>
@@ -59,6 +60,11 @@
             <groupId>com.fifesoft</groupId>
             <artifactId>rsyntaxtextarea</artifactId>
             <version>${rsyntaxtextarea.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.weisj</groupId>
+            <artifactId>darklaf-core</artifactId>
+            <version>${darklaf.version}</version>
         </dependency>
     </dependencies>
 
