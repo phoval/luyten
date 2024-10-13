@@ -1,70 +1,35 @@
 package us.deathmarine.luyten;
 
 import com.strobel.assembler.InputTypeLoader;
-import com.strobel.assembler.metadata.ITypeLoader;
-import com.strobel.assembler.metadata.JarTypeLoader;
-import com.strobel.assembler.metadata.MetadataSystem;
-import com.strobel.assembler.metadata.TypeDefinition;
-import com.strobel.assembler.metadata.TypeReference;
+import com.strobel.assembler.metadata.*;
 import com.strobel.core.StringUtilities;
 import com.strobel.core.VerifyArgument;
 import com.strobel.decompiler.DecompilationOptions;
 import com.strobel.decompiler.DecompilerSettings;
 import com.strobel.decompiler.PlainTextOutput;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.StringWriter;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
-import javax.swing.AbstractAction;
-import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
-import javax.swing.ImageIcon;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JProgressBar;
-import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
-import javax.swing.JTabbedPane;
-import javax.swing.JTree;
-import javax.swing.KeyStroke;
-import javax.swing.SwingUtilities;
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rsyntaxtextarea.Theme;
+import org.fife.ui.rtextarea.RTextScrollPane;
+
+import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
-import javax.swing.tree.TreeSelectionModel;
-import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
-import org.fife.ui.rsyntaxtextarea.Theme;
-import org.fife.ui.rtextarea.RTextScrollPane;
+import javax.swing.tree.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.util.zip.ZipEntry;
 
 /**
  * Jar-level model
@@ -91,6 +56,11 @@ public class Model extends JSplitPane {
     private final HashSet<OpenFile> hmap = new HashSet<>();
     private Set<String> treeExpansionState;
     private boolean open = false;
+
+    public State getState() {
+        return state;
+    }
+
     private State state;
     private final ConfigSaver configSaver;
     private final LuytenPreferences luytenPrefs;
@@ -256,7 +226,7 @@ public class Model extends JSplitPane {
         @Override
         public void mousePressed(MouseEvent event) {
             boolean isClickCountMatches = (event.getClickCount() == 1 && luytenPrefs.isSingleClickOpenEnabled())
-                                          || (event.getClickCount() == 2 && !luytenPrefs.isSingleClickOpenEnabled());
+                    || (event.getClickCount() == 2 && !luytenPrefs.isSingleClickOpenEnabled());
             if (!isClickCountMatches)
                 return;
 
@@ -322,16 +292,21 @@ public class Model extends JSplitPane {
                 }
                 path.append(name);
 
-                if (file.getName().endsWith(".jar") || file.getName().endsWith(".zip")) {
+                if (file.getName().endsWith(".jar") || file.getName().endsWith(".zip") || file.getName().endsWith(".war")) {
                     if (state == null) {
                         JarFile jfile = new JarFile(file);
                         ITypeLoader jarLoader = new JarTypeLoader(jfile);
 
                         typeLoader.getTypeLoaders().add(jarLoader);
-                        state = new State(file.getCanonicalPath(), file, jfile, jarLoader);
+                        state = new State(file.getCanonicalPath(), file, Collections.singletonList(jfile), Collections.singletonList(jarLoader));
+                    }
+                    StringBuilder finalPath = path;
+                    JarFile jarFile = state.jarFiles.stream().filter(x -> x.getJarEntry(finalPath.toString()) != null).findAny().orElse(null);
+                    if(jarFile == null) {
+                        throw new FileEntryNotFoundException();
                     }
 
-                    JarEntry entry = state.jarFile.getJarEntry(path.toString());
+                    JarEntry entry = jarFile.getJarEntry(path.toString());
                     if (entry == null) {
                         throw new FileEntryNotFoundException();
                     }
@@ -346,7 +321,7 @@ public class Model extends JSplitPane {
                         extractClassToTextPane(type, name, path.toString(), null);
                     } else {
                         getLabel().setText("Opening: " + name);
-                        try (InputStream in = state.jarFile.getInputStream(entry)) {
+                        try (InputStream in = jarFile.getInputStream(entry)) {
                             extractSimpleFileEntryToTextPane(in, name, path.toString());
                         }
                     }
@@ -494,7 +469,7 @@ public class Model extends JSplitPane {
             }
             for (OpenFile open : hmap) {
                 if (house.indexOfComponent(open.scrollPane) == selectedIndex
-                    && open.getType() != null && !open.isContentValid()) {
+                        && open.getType() != null && !open.isContentValid()) {
                     updateOpenClass(open);
                     break;
                 }
@@ -547,22 +522,24 @@ public class Model extends JSplitPane {
 
         private final String key;
         private final File file;
-        final JarFile jarFile;
-        final ITypeLoader typeLoader;
+        final Collection<JarFile> jarFiles;
+        final Collection<ITypeLoader> typeLoader;
 
-        private State(String key, File file, JarFile jarFile, ITypeLoader typeLoader) {
+        private State(String key, File file, Collection<JarFile> jarFiles, Collection<ITypeLoader> typeLoader) {
             this.key = VerifyArgument.notNull(key, "key");
             this.file = VerifyArgument.notNull(file, "file");
-            this.jarFile = jarFile;
+            this.jarFiles = jarFiles;
             this.typeLoader = typeLoader;
         }
 
         @Override
         public void close() {
             if (typeLoader != null) {
-                Model.this.typeLoader.getTypeLoaders().remove(typeLoader);
+                Model.this.typeLoader.getTypeLoaders().removeAll(typeLoader);
             }
-            Closer.tryClose(jarFile);
+            for (JarFile jarFile : jarFiles) {
+                Closer.tryClose(jarFile);
+            }
         }
 
         public String getKey() {
@@ -685,24 +662,55 @@ public class Model extends JSplitPane {
                 if (file.length() > MAX_JAR_FILE_SIZE_BYTES) {
                     throw new TooLargeFileException(file.length());
                 }
-                if (file.getName().endsWith(".zip") || file.getName().endsWith(".jar")) {
+                if (file.getName().endsWith(".zip") || file.getName().endsWith(".jar") || file.getName().endsWith(".war")) {
+                    Collection<JarFile> subJarFiles = new ConcurrentLinkedQueue<>();
                     JarFile jarFile = new JarFile(file);
+                    subJarFiles.add(jarFile);
                     getLabel().setText("Loading: " + jarFile.getName());
                     bar.setVisible(true);
+                    Collection<ITypeLoader> jarLoader = new ConcurrentLinkedQueue<>();
+                    jarLoader.add(new JarTypeLoader(jarFile));
 
                     JarEntryFilter jarEntryFilter = new JarEntryFilter(jarFile);
-                    List<String> mass;
+                    Collection<String> mass = new ConcurrentLinkedQueue<>();
                     if (luytenPrefs.isFilterOutInnerClassEntries()) {
-                        mass = jarEntryFilter.getEntriesWithoutInnerClasses();
+                        mass.addAll(jarEntryFilter.getEntriesWithoutInnerClasses());
                     } else {
-                        mass = jarEntryFilter.getAllEntriesFromJar();
+                        mass.addAll(jarEntryFilter.getAllEntriesFromJar());
                     }
-                    buildTreeFromMass(mass);
+                    for (String el : mass) {
+                        if (el.endsWith(".jar") && jarFile.getEntry(el) != null) {
+                            ZipEntry entry = jarFile.getEntry(el);
+                            JarFile subjarFile;
+                            try {
+                                Path tmpFile = Files.createTempFile("lu", "zz");
+                                Files.copy(
+                                        jarFile.getInputStream(entry),
+                                        tmpFile,
+                                        StandardCopyOption.REPLACE_EXISTING);
+                                subjarFile = new JarFile(tmpFile.toFile());
+                                JarEntryFilter subJarEntryFilter = new JarEntryFilter(subjarFile);
+                                Collection<String> entries;
+                                if (luytenPrefs.isFilterOutInnerClassEntries()) {
+                                    entries = subJarEntryFilter.getEntriesWithoutInnerClasses();
+                                } else {
+                                    entries = subJarEntryFilter.getAllEntriesFromJar();
+                                }
+                                mass.addAll(entries);
+                                jarLoader.add(new JarTypeLoader(subjarFile));
+                                subJarFiles.add(subjarFile);
+                                //subjarFile.close();
+                                //Files.deleteIfExists(tmpFile);
+                            } catch (IOException e) {
+                                Luyten.showExceptionDialog("Cannot open " + el + "!", e);
+                            }
+                        }
+                    }
+                    buildTreeFromMass(new ArrayList<>(mass));
 
                     if (state == null) {
-                        ITypeLoader jarLoader = new JarTypeLoader(jarFile);
-                        typeLoader.getTypeLoaders().add(jarLoader);
-                        state = new State(file.getCanonicalPath(), file, jarFile, jarLoader);
+                        typeLoader.getTypeLoaders().addAll(jarLoader);
+                        state = new State(file.getCanonicalPath(), file, subJarFiles, jarLoader);
                     }
                     open = true;
                     getLabel().setText("Complete");
@@ -806,7 +814,7 @@ public class Model extends JSplitPane {
             }
             packages.get(packagePath).add(packageEntry);
             if (!entry.startsWith("META-INF") && !packageRoot.trim().isEmpty()
-                && entry.matches(".*\\.(class|java|prop|properties)$")) {
+                    && entry.matches(".*\\.(class|java|prop|properties)$")) {
                 classContainingPackageRoots.add(packageRoot);
             }
         }
@@ -840,7 +848,7 @@ public class Model extends JSplitPane {
         for (String packagePath : packages.keySet()) {
             String packageRoot = packagePath.replaceAll("/.*$", "");
             if (!classContainingPackageRoots.contains(packageRoot) && !packagePath.startsWith("META-INF")
-                && !packagePath.isEmpty()) {
+                    && !packagePath.isEmpty()) {
                 List<String> packagePathElements = Arrays.asList(packagePath.split("/"));
                 for (String entry : packages.get(packagePath)) {
                     ArrayList<String> list = new ArrayList<>(packagePathElements);

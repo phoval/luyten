@@ -275,7 +275,8 @@ public class MainWindow extends JFrame {
                 if (findBox == null)
                     findBox = new FindBox(this);
                 findBox.showFindBox();
-            }
+            } else
+                onFindAllMenu();
         } catch (Exception e) {
             Luyten.showExceptionDialog("Exception!", e);
         }

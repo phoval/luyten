@@ -1,8 +1,6 @@
 package us.deathmarine.luyten;
 
-import java.awt.Cursor;
-import java.awt.Desktop;
-import java.awt.Font;
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.DataInputStream;

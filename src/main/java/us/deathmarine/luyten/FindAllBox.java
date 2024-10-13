@@ -14,10 +14,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
-import java.io.StringWriter;
+import java.io.*;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.jar.JarEntry;
@@ -122,11 +119,11 @@ public class FindAllBox extends JDialog {
 
                     } else {
                         try {
-                            JarFile jfile = new JarFile(mainWindow.getSelectedModel().getOpenedFile());
-                            mainWindow.getSelectedModel().extractSimpleFileEntryToTextPane(
-                                    jfile.getInputStream(jfile.getEntry(entryName)), array[array.length - 1],
-                                    entryName);
-                            jfile.close();
+                            for(JarFile jfile : mainWindow.getSelectedModel().getState().jarFiles) {
+                                mainWindow.getSelectedModel().extractSimpleFileEntryToTextPane(
+                                        jfile.getInputStream(jfile.getEntry(entryName)), array[array.length - 1],
+                                        entryName);
+                            }
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -215,106 +212,105 @@ public class FindAllBox extends JDialog {
                     DecompilerSettings settings = configSaver.getDecompilerSettings();
                     boolean filter = ConfigSaver.getLoadedInstance().getLuytenPreferences()
                             .isFilterOutInnerClassEntries();
-                    try {
-                        JarFile jarFile = new JarFile(inFile);
-                        Enumeration<JarEntry> entLength = jarFile.entries();
-                        initProgressBar(Collections.list(entLength).size());
-                        Enumeration<JarEntry> ent = jarFile.entries();
-                        while (ent.hasMoreElements() && findButton.getText().equals("Stop")) {
-                            JarEntry entry = ent.nextElement();
-                            String name = entry.getName();
-                            setStatus(name);
-                            if (filter && name.contains("$"))
-                                continue;
-                            if (locked || classname.isSelected()) {
-                                locked = true;
-                                if (search(entry.getName()))
-                                    addClassName(entry.getName());
-                            } else {
-                                if (entry.getName().endsWith(".class")) {
-                                    synchronized (settings) {
-                                        String internalName = StringUtilities.removeRight(entry.getName(), ".class");
-                                        try {
-                                            TypeReference type =
-                                                    mainWindow.getSelectedModel().getMetadataSystem().lookupType(internalName);
-                                            TypeDefinition resolvedType;
-                                            if (type != null && ((resolvedType = type.resolve()) != null)) {
-                                                StringWriter stringwriter = new StringWriter();
-                                                DecompilationOptions decompilationOptions;
-                                                decompilationOptions = new DecompilationOptions();
-                                                decompilationOptions.setSettings(settings);
-                                                decompilationOptions.setFullDecompilation(true);
-                                                PlainTextOutput plainTextOutput = new PlainTextOutput(stringwriter);
-                                                plainTextOutput.setUnicodeOutputEnabled(
-                                                        decompilationOptions.getSettings().isUnicodeOutputEnabled());
-                                                settings.getLanguage().decompileType(resolvedType, plainTextOutput,
-                                                        decompilationOptions);
-                                                if (search(stringwriter.toString()))
-                                                    addClassName(entry.getName());
-                                            }
-                                        } catch (IllegalStateException ise) {
-                                            if (ise.getMessage().contains("Invalid BootstrapMethods attribute entry: "
-                                                                          + "2 additional arguments required for "
-                                                                          + "method "
-                                                                          + "java/lang/invoke/StringConcatFactory"
-                                                                          + ".makeConcatWithConstants, "
-                                                                          + "but only 1 specified.")) {
-                                                // Known issue of Procyon <= 0.5.35 and fix not yet released, refer to
-                                                // https://web.archive.org/web/20200722211732/https://bitbucket.org/mstrobel/procyon/issues/336/
-                                                // Searching in a WAR or JAR file could pop-up a lot of error dialogs
-                                                // for a lot of class files, we simply say nothing here
-                                                addClassName(entry.getName() + "  (search failed due to known "
-                                                             + "Exception in Procyon <= 0.5.35. Opening file will fail "
-                                                             + "too)");
-                                            } else {
-                                                // all other IllegalStateException cases
-                                                addClassName(entry.getName() + "  (search failed due to Exception. "
-                                                             + "Opening file will fail too)");
-                                                Luyten.showExceptionDialog("Caught Exception on: " + entry.getName(),
-                                                        ise);
-                                            }
-                                        } catch (Exception e) {
-                                            addClassName(entry.getName() + "  (search failed due to Exception. "
-                                                         + "Opening file will fail too)");
-                                            Luyten.showExceptionDialog("Caught Exception on: " + entry.getName(), e);
-                                        }
-                                    }
-                                } else {
-                                    StringBuilder sb = new StringBuilder();
-                                    double ascii = 0;
-                                    double other = 0;
-                                    try (InputStreamReader inputStreamReader = new InputStreamReader(
-                                            jarFile.getInputStream(entry));
-                                         BufferedReader reader = new BufferedReader(inputStreamReader)) {
-                                        String line;
-                                        while ((line = reader.readLine()) != null) {
-                                            sb.append(line).append("\n");
-                                            // Source: https://stackoverflow.com/a/13533390/5894824
-                                            for (byte b : line.getBytes()) {
-                                                if (b == 0x09 || b == 0x0A || b == 0x0C || b == 0x0D || (b >= 0x20 && b <= 0x7E))
-                                                    ascii++;
-                                                else other++;
-                                            }
-                                        }
-                                    }
 
-                                    if ((other == 0 || ascii / (ascii + other) > 0.5) && search(sb.toString()))
+                    mainWindow.getSelectedModel().getState().jarFiles.parallelStream().forEach(jarFile -> {
+                        try {
+                            Enumeration<JarEntry> entLength = jarFile.entries();
+                            initProgressBar(Collections.list(entLength).size());
+                            Enumeration<JarEntry> ent = jarFile.entries();
+                            while (ent.hasMoreElements() && findButton.getText().equals("Stop")) {
+                                JarEntry entry = ent.nextElement();
+                                String name = entry.getName();
+                                setStatus(name);
+                                if (filter && name.contains("$"))
+                                    continue;
+                                if (locked || classname.isSelected()) {
+                                    locked = true;
+                                    if (search(entry.getName()))
                                         addClassName(entry.getName());
+                                } else {
+                                    if (entry.getName().endsWith(".class")) {
+                                        synchronized (settings) {
+                                            String internalName = StringUtilities.removeRight(entry.getName(), ".class");
+                                            try {
+                                                TypeReference type =
+                                                        mainWindow.getSelectedModel().getMetadataSystem().lookupType(internalName);
+                                                TypeDefinition resolvedType;
+                                                if (type != null && ((resolvedType = type.resolve()) != null)) {
+                                                    StringWriter stringwriter = new StringWriter();
+                                                    DecompilationOptions decompilationOptions;
+                                                    decompilationOptions = new DecompilationOptions();
+                                                    decompilationOptions.setSettings(settings);
+                                                    decompilationOptions.setFullDecompilation(true);
+                                                    PlainTextOutput plainTextOutput = new PlainTextOutput(stringwriter);
+                                                    plainTextOutput.setUnicodeOutputEnabled(
+                                                            decompilationOptions.getSettings().isUnicodeOutputEnabled());
+                                                    settings.getLanguage().decompileType(resolvedType, plainTextOutput,
+                                                            decompilationOptions);
+                                                    if (search(stringwriter.toString()))
+                                                        addClassName(entry.getName());
+                                                }
+                                            } catch (IllegalStateException ise) {
+                                                if (ise.getMessage().contains("Invalid BootstrapMethods attribute entry: "
+                                                        + "2 additional arguments required for "
+                                                        + "method "
+                                                        + "java/lang/invoke/StringConcatFactory"
+                                                        + ".makeConcatWithConstants, "
+                                                        + "but only 1 specified.")) {
+                                                    // Known issue of Procyon <= 0.5.35 and fix not yet released, refer to
+                                                    // https://web.archive.org/web/20200722211732/https://bitbucket.org/mstrobel/procyon/issues/336/
+                                                    // Searching in a WAR or JAR file could pop-up a lot of error dialogs
+                                                    // for a lot of class files, we simply say nothing here
+                                                    addClassName(entry.getName() + "  (search failed due to known "
+                                                            + "Exception in Procyon <= 0.5.35. Opening file will fail "
+                                                            + "too)");
+                                                } else {
+                                                    // all other IllegalStateException cases
+                                                    addClassName(entry.getName() + "  (search failed due to Exception. "
+                                                            + "Opening file will fail too)");
+                                                    Luyten.showExceptionDialog("Caught Exception on: " + entry.getName(),
+                                                            ise);
+                                                }
+                                            } catch (Exception e) {
+                                                addClassName(entry.getName() + "  (search failed due to Exception. "
+                                                        + "Opening file will fail too)");
+                                                Luyten.showExceptionDialog("Caught Exception on: " + entry.getName(), e);
+                                            }
+                                        }
+                                    } else {
+                                        StringBuilder sb = new StringBuilder();
+                                        double ascii = 0;
+                                        double other = 0;
+                                        try (InputStreamReader inputStreamReader = new InputStreamReader(
+                                                jarFile.getInputStream(entry));
+                                             BufferedReader reader = new BufferedReader(inputStreamReader)) {
+                                            String line;
+                                            while ((line = reader.readLine()) != null) {
+                                                sb.append(line).append("\n");
+                                                // Source: https://stackoverflow.com/a/13533390/5894824
+                                                for (byte b : line.getBytes()) {
+                                                    if (b == 0x09 || b == 0x0A || b == 0x0C || b == 0x0D || (b >= 0x20 && b <= 0x7E))
+                                                        ascii++;
+                                                    else other++;
+                                                }
+                                            }
+                                        }
+
+                                        if ((other == 0 || ascii / (ascii + other) > 0.5) && search(sb.toString()))
+                                            addClassName(entry.getName());
+                                    }
                                 }
                             }
+                        } catch (Exception e) {
+                            Luyten.showExceptionDialog("Exception!", e);
                         }
-                        setSearching(false);
-                        if (findButton.getText().equals("Stop")) {
-                            setStatus("Done.");
-                            findButton.setText("Find");
-                            locked = false;
-                        }
-                        jarFile.close();
-                        locked = false;
-                    } catch (Exception e) {
-                        Luyten.showExceptionDialog("Exception!", e);
+                    });
+                    setSearching(false);
+                    if (findButton.getText().equals("Stop")) {
+                        setStatus("Done.");
+                        findButton.setText("Find");
                     }
-
+                    locked = false;
                 }
             });
             tmp_thread.start();
